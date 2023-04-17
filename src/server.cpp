@@ -11,11 +11,13 @@
 #include <unistd.h>
 #include <map>
 #include <string>
+#include "ThreadSafeMap.hpp"
+#include "ThreadSafeMap.cpp"
 
 std::atomic_bool running(true);
 using namespace std;
 
-map<string, string> user_pass_map;
+ThreadSafeMap<string, string> user_pass_map;
 map<string, bool> login_states; 
 
 
@@ -40,7 +42,14 @@ void client_handler(int client_socket) {
 
         if(num_bytes_received==-1) {
             cout<<"terminating server socket corresponds "<<client_socket<<endl;
-            close(client_socket);
+            break;
+        }
+
+        if(running.load()==false)  {
+            char message[256] = "ERR Server shut down\n";
+            if (send(client_socket, message, strlen(message), 0) == -1) {
+                std::cerr << "Failed to send message to client" << std::endl;
+            }     
             break;
         }
 
@@ -58,40 +67,38 @@ void client_handler(int client_socket) {
 
         if(strncmp(tokens[0],"SIGNUP",6)==0) {
             cout << "This is register\n";
-            string username(tokens[1]);
+            const string username(tokens[1]);
             string password(tokens[2]);
-            auto it = user_pass_map.find(username);
 
-            if (it != user_pass_map.end()) {
+            if (user_pass_map.contains(username)) {
                 // Key was found in the map
                 char message[256] = "User already exists\n";
                 if (send(client_socket, message, strlen(message), 0) == -1) {
                     std::cerr << "Failed to send message to server" << std::endl;
-                    return;
+                    break;
                 }
 
             } else {
                 // Key was not found in the map
-                user_pass_map[username]=password;
+                user_pass_map.add(username,password);
                 char message[256] = "Sign up is succesful\n";
                 if (send(client_socket, message, strlen(message), 0) == -1) {
                     std::cerr << "Failed to send message to server" << std::endl;
-                    return;
+                    break;
                 }
             }            
 
         }
         else if(strncmp(tokens[0],"LOGIN",5)==0) {
             cout<< "This is login\n";
-            string username(tokens[1]);
-            auto it = user_pass_map.find(username);
-            if (it != user_pass_map.end()) {
+            const string username(tokens[1]);
+            if (user_pass_map.contains(username)) {
                 // Key was found in the map
                 login_states[username]=true;
                 char message[256] = "Login is succesful\n";
                 if (send(client_socket, message, strlen(message), 0) == -1) {
                     std::cerr << "Failed to send message to server" << std::endl;
-                    return;
+                    break;
                 }                   
 
             } else {
@@ -100,21 +107,20 @@ void client_handler(int client_socket) {
                 char message[256] = "User not found\n";
                 if (send(client_socket, message, strlen(message), 0) == -1) {
                     std::cerr << "Failed to send message to server" << std::endl;
-                    return;
+                    break;
                 }                  
             }
      
         }
         else if(strncmp(tokens[0],"LOGOUT",6)==0) {
             cout<< "This is logout\n";
-            // Close client connection
             string username(tokens[1]);
             
             login_states[username]=false;
             char message[256] = "Logout is succesful\n";
             if (send(client_socket, message, strlen(message), 0) == -1) {
                 std::cerr << "Failed to send message to server" << std::endl;
-                return;
+                break;
             }            
         }
         else if(strncmp(tokens[0],"EXIT",4)==0) {
@@ -122,13 +128,15 @@ void client_handler(int client_socket) {
             char message[256] = "Exit is succesful\n";
             if (send(client_socket, message, strlen(message), 0) == -1) {
                 std::cerr << "Failed to send message to server" << std::endl;
-                return;
+                break;
             }              
-            close(client_socket);
             std::cout << "Client disconnected. Socket: " << client_socket << std::endl;    
             break;             
         }
     }
+    std::cout << "Server closes socket: " << client_socket << std::endl;    
+    close(client_socket);
+
 }
 
 int main(int argc, char *argv[]) {
@@ -140,6 +148,9 @@ int main(int argc, char *argv[]) {
         std::cerr << "Failed to create socket" << std::endl;
         return 1;
     }
+
+    user_pass_map.readFromFile("db/users.txt",' ');
+    //user_pass_map.print();
 
     // Set socket options
     int opt = 1;
@@ -174,6 +185,7 @@ int main(int argc, char *argv[]) {
     }
 
     std::cout << "Server started on port " << port << std::endl;
+
 
     // Wait for incoming connections
     while (running.load()) {

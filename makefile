@@ -1,26 +1,33 @@
-# Compiler
-CC = g++
+CXX = g++
+CXXFLAGS = -std=c++11 -Wall -Wextra -Wpedantic -I./include
 
-# Compiler flags
-CFLAGS = -Wall -std=c++11
+# Add ThreadSafeMap.cpp to the list of source files
+SERVER_SRC = src/ThreadSafeMap.cpp src/server.cpp 
 
-# Server executable
-SERVER = server
+CLIENT_SRC = src/client.cpp
 
-# Client executable
-CLIENT = client
+# Generate object files from source files
+SERVER_OBJ = $(SERVER_SRC:.cpp=.o)
 
-# Source files
-SERVER_SRC = server.cpp
-CLIENT_SRC = client.cpp
+# Generate object files from source files
+CLIENT_OBJ = $(CLIENT_SRC:.cpp=.o)
 
-all: $(SERVER) $(CLIENT)
+# Build server executable from object files
+server: $(SERVER_OBJ)
+	$(CXX) $(CXXFLAGS) $^ -o $@
 
-$(SERVER): $(SERVER_SRC)
-	$(CC) $(CFLAGS) -o $(SERVER) $(SERVER_SRC) -lpthread
+client: $(CLIENT_OBJ)
+	$(CXX) $(CXXFLAGS) $^ -o $@
 
-$(CLIENT): $(CLIENT_SRC)
-	$(CC) $(CFLAGS) -o $(CLIENT) $(CLIENT_SRC)
+# Compile each source file into an object file
+%.o: src/%.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+# Clean up object files and executables
 clean:
-	rm -f $(SERVER) $(CLIENT)
+	rm -f $(SERVER_OBJ) server
+
+# Compile all files and build executables
+all: server client
+
+.PHONY: all clean
