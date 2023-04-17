@@ -25,7 +25,7 @@ client: $(CLIENT_OBJ)
 
 # Clean up object files and executables
 clean:
-	rm -f $(SERVER_OBJ) server
+	rm -f $(SERVER_OBJ) server $(CLIENT_OBJ) client 
 
 # Compile all files and build executables
 all: server client
