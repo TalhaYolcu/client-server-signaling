@@ -17,10 +17,6 @@
 std::atomic_bool running(true);
 using namespace std;
 
-ThreadSafeMap<string, string> user_pass_map;
-map<string, bool> login_states; 
-
-
 
 void signal_handler(int sig) {
     if (sig == SIGINT) {
@@ -28,12 +24,52 @@ void signal_handler(int sig) {
     }
 }
 
+int connect_to_client(char*client_ip_address,char*tokens1,char*tokens2,
+    char*client_port_char,int* client_port_int,int* client_socket_fd) {
+
+    //get client ip address
+    strncpy(client_ip_address,tokens1,strlen(tokens1));
+    
+    //get client port as a char
+    strncpy(client_port_char,tokens2,strlen(tokens2));
+    //get client port as number
+    *client_port_int=atoi(client_port_char);
+
+    //create socket and connect to client
+    *client_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (*client_socket_fd == -1) {
+        std::cerr << "Failed to create socket" << std::endl;
+        return -1;
+    }
+
+    // Convert the server address from text to binary form
+    struct sockaddr_in client_addr;
+    client_addr.sin_family = AF_INET;   
+    client_addr.sin_port=htons(*client_port_int);
+    if (inet_pton(AF_INET, client_ip_address, &client_addr.sin_addr) != 1) {
+        std::cerr << "Invalid client address" << std::endl;
+        return -1;
+    }
+
+    // Connect to the server
+    if (connect(*client_socket_fd, (struct sockaddr*) &client_addr, sizeof(client_addr)) == -1) {
+        std::cerr << "Failed to connect to client" << std::endl;
+        return -1;
+    }
+    return 0;
+}
+
 void client_handler(int client_socket) {
     std::cout << "Client connected. Socket: " << client_socket << std::endl;
 
     // Handle client request here
 
-
+    char client_ip_address[15];
+    char client_port_char[6];
+    int client_port_int=-1;
+    int client_socket_fd=-1;
+    memset(client_ip_address,0,15);
+    memset(client_port_char,0,6);
     while(running.load()) {
         // Receive messages from the client
         char buffer[1024];
@@ -64,64 +100,32 @@ void client_handler(int client_socket) {
         while ((token = strtok_r(rest, " ", &rest))) {
             tokens[i++] = token;
         }
+        if(strncmp(tokens[0],"CLIENT",6)==0) {
+            cout<<"Client ip address and port received\n";
+            if(connect_to_client(client_ip_address,tokens[1],tokens[2]
+            ,client_port_char,&client_port_int,&client_socket_fd)!=0) {
+                cout<<"Error connecting to the server\n";
+                break;
+            }
+            char message[256] = "Hello from new server\n";
+            send(client_socket_fd,message,strlen(message),0);
 
-        if(strncmp(tokens[0],"SIGNUP",6)==0) {
+
+        }
+        else if(strncmp(tokens[0],"SIGNUP",6)==0) {
             cout << "This is register\n";
-            const string username(tokens[1]);
-            string password(tokens[2]);
-
-            if (user_pass_map.contains(username)) {
-                // Key was found in the map
-                char message[256] = "User already exists\n";
-                if (send(client_socket, message, strlen(message), 0) == -1) {
-                    std::cerr << "Failed to send message to server" << std::endl;
-                    break;
-                }
-
-            } else {
-                // Key was not found in the map
-                user_pass_map.add(username,password);
-                char message[256] = "Sign up is succesful\n";
-                if (send(client_socket, message, strlen(message), 0) == -1) {
-                    std::cerr << "Failed to send message to server" << std::endl;
-                    break;
-                }
-            }            
+           
 
         }
         else if(strncmp(tokens[0],"LOGIN",5)==0) {
             cout<< "This is login\n";
             const string username(tokens[1]);
-            if (user_pass_map.contains(username)) {
-                // Key was found in the map
-                login_states[username]=true;
-                char message[256] = "Login is succesful\n";
-                if (send(client_socket, message, strlen(message), 0) == -1) {
-                    std::cerr << "Failed to send message to server" << std::endl;
-                    break;
-                }                   
 
-            } else {
-                // Key was not found in the map
-                cout << "User not found" << endl;
-                char message[256] = "User not found\n";
-                if (send(client_socket, message, strlen(message), 0) == -1) {
-                    std::cerr << "Failed to send message to server" << std::endl;
-                    break;
-                }                  
-            }
      
         }
         else if(strncmp(tokens[0],"LOGOUT",6)==0) {
             cout<< "This is logout\n";
-            string username(tokens[1]);
-            
-            login_states[username]=false;
-            char message[256] = "Logout is succesful\n";
-            if (send(client_socket, message, strlen(message), 0) == -1) {
-                std::cerr << "Failed to send message to server" << std::endl;
-                break;
-            }            
+           
         }
         else if(strncmp(tokens[0],"EXIT",4)==0) {
             cout <<"This is exit\n";
@@ -149,8 +153,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    user_pass_map.readFromFile("db/users.txt",' ');
-    //user_pass_map.print();
 
     // Set socket options
     int opt = 1;

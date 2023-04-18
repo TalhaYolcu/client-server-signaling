@@ -59,7 +59,6 @@ void ThreadSafeMap<K, V>::writeToFile(const std::string& filename, const char de
 
 template<typename K, typename V>
 void ThreadSafeMap<K, V>::readFromFile(const string& filename, char delimiter) {
-    cout<<"READD"<<endl;
     std::ifstream infile(filename);
     if (infile.is_open()) {
         string line;
@@ -71,8 +70,6 @@ void ThreadSafeMap<K, V>::readFromFile(const string& filename, char delimiter) {
                 add(key, value);
             }
         }
-    cout<<"READD"<<endl;
-
         infile.close();
     }
 }

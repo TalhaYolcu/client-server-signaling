@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall -Wextra -Wpedantic -I./include
+CXXFLAGS = -std=c++11 -Wall -Wextra -Wpedantic -lpthread -I./include
 
 # Add ThreadSafeMap.cpp to the list of source files
 SERVER_SRC = src/ThreadSafeMap.cpp src/server.cpp 
