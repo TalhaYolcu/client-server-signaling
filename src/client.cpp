@@ -10,12 +10,23 @@
 #include <condition_variable>
 #include <chrono>
 #include <unistd.h>
+#include "rtc/rtc.hpp"
+#include "rtc/peerconnection.hpp"
+#include <nlohmann/json.hpp>
+#include "util.hpp"
 
 using namespace std;
+using nlohmann::json;
+
+
+
 string username;
 string password;
 bool server_disconnected=false;
 std::atomic_bool running(true);
+bool exit_selected=false;
+string local_sdp;
+bool isLogin=false;
 
 void signal_handler(int sig) {
     if (sig == SIGINT) {
@@ -35,14 +46,16 @@ void sign_up_login_user(int client_socket,int option) {
     string register_request = state + " " + username + " " + password;
 
     // Send a message to the server
-    const char* message = register_request.c_str();
-    if (send(client_socket, message, strlen(message), 0) == -1) {
+    char message[SOCKET_BUFFER_SIZE];
+    memset(message,0,SOCKET_BUFFER_SIZE);
+    strncpy(message,register_request.c_str(),strlen(register_request.c_str()));
+    if (send(client_socket, message, sizeof(message), 0) == -1) {
         std::cerr << "Failed to send message to server" << std::endl;
         return;
     }
 
     // Receive a response from the server
-    char buffer[1024] = {0};
+    char buffer[SOCKET_BUFFER_SIZE] = {0};
     if (recv(client_socket, buffer, sizeof(buffer), 0) == -1) {
         std::cerr << "Failed to receive response from server" << std::endl;
         return;
@@ -52,7 +65,8 @@ void sign_up_login_user(int client_socket,int option) {
     }
 
     std::cout << "Server response: " << buffer << std::endl;
-   
+    exit_selected=false;
+    isLogin=true;
 
 }
 
@@ -60,14 +74,16 @@ void logout_user(int client_sock,string username) {
     string logout_request = "LOGOUT " + username;
 
     // Send a message to the server
-    const char* message = logout_request.c_str();
-    if (send(client_sock, message, strlen(message), 0) == -1) {
+    char message[SOCKET_BUFFER_SIZE];
+    memset(message,0,SOCKET_BUFFER_SIZE);
+    strncpy(message,logout_request.c_str(),strlen(logout_request.c_str()));
+    if (send(client_sock, message, sizeof(message), 0) == -1) {
         std::cerr << "Failed to send message to server" << std::endl;
         return;
     }
 
     // Receive a response from the server
-    char buffer[1024] = {0};
+    char buffer[SOCKET_BUFFER_SIZE] = {0};
     if (recv(client_sock, buffer, sizeof(buffer), 0) == -1) {
         std::cerr << "Failed to receive response from server" << std::endl;
         return;
@@ -77,6 +93,7 @@ void logout_user(int client_sock,string username) {
     }
 
     std::cout << "Server response: " << buffer << std::endl;
+    isLogin=false;
 
 }
 void exit_user(int client_sock) {
@@ -88,14 +105,16 @@ void exit_user(int client_sock) {
     string logout_request = "EXIT EXIT";
 
     // Send a message to the server
-    const char* message = logout_request.c_str();
-    if (send(client_sock, message, strlen(message), 0) == -1) {
+    char message[SOCKET_BUFFER_SIZE];
+    memset(message,0,SOCKET_BUFFER_SIZE);
+    strncpy(message,logout_request.c_str(),strlen(logout_request.c_str()));
+    if (send(client_sock, message, sizeof(message), 0) == -1) {
         std::cerr << "Failed to send message to server" << std::endl;
         return;
     }
 
     // Receive a response from the server
-    char buffer[1024] = {0};
+    char buffer[SOCKET_BUFFER_SIZE] = {0};
     if (recv(client_sock, buffer, sizeof(buffer), 0) == -1) {
         std::cerr << "Failed to receive response from server" << std::endl;
         return;
@@ -105,6 +124,25 @@ void exit_user(int client_sock) {
     }    
 
     std::cout << "Server response: " << buffer << std::endl;
+    exit_selected=true;
+}
+
+void call_peer(int client_sock) {
+    char peer_username[50];
+    memset(peer_username,0,50);
+
+    cout<<"Enter username to call"<<endl;
+    cin>>peer_username;
+
+    // Send a message to the server
+    char message[SOCKET_BUFFER_SIZE];
+    memset(message,0,SOCKET_BUFFER_SIZE);
+    sprintf(message,"CALL %s %s",peer_username,local_sdp.c_str());
+    if (send(client_sock, message, sizeof(message), 0) == -1) {
+        std::cerr << "Failed to send message to server" << std::endl;
+        return;
+    }    
+
 }
 
 void open_menu(int client_sock) {
@@ -118,6 +156,9 @@ void open_menu(int client_sock) {
         cin >> option;
         if(!running.load()) {
             cout<<"SIGINT Received, exiting from menu\n";
+            if(!exit_selected) {
+                exit(client_sock);
+            }
             break;
         }
         if(server_disconnected) {
@@ -133,6 +174,15 @@ void open_menu(int client_sock) {
             sign_up_login_user(client_sock,option);
             break;
         
+        case 3:
+            if(isLogin) {
+                call_peer(client_sock);
+            }
+            else {
+                cout<<"Please login first\n"<<endl;
+            }
+            break;
+
         case 4:
             logout_user(client_sock,username);
             break;
@@ -151,6 +201,13 @@ void open_menu(int client_sock) {
         
         if(option==5) {
             cout << "Exiting...\n";
+            pid_t pid = getpid();
+
+            // Send the SIGINT signal to the current process
+            int result = kill(pid, SIGINT);       
+            if(result==-1) {
+                cout<<"Error to send kill yourself\n";
+            }     
             break;
         }
         
@@ -194,21 +251,59 @@ void server_handler(int port) {
     socklen_t client_addr_len = sizeof(client_addr);
     int client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len);
 
+    if(!running.load()) {
+        cout<<"SIGINT received"<<endl;
+        return;
+    }
+
     if (client_socket == -1) {
         std::cerr << "Failed to accept incoming connection" << std::endl;
         return;
     }
 
     while(running.load()) {
-        char buffer[1024] = {0};
+        char buffer[SOCKET_BUFFER_SIZE] = {0};
         if (recv(client_socket, buffer, sizeof(buffer), 0) == -1) {
             std::cerr << "Failed to receive response from server" << std::endl;
             break;;
         }
+
         if(strlen(buffer)==0) {
             break;
         }
-        if(running.load()==false) {
+        
+        if(strncmp(buffer,"EXIT",4)==0) {
+            cout<<"Exiting...\n";
+            break;
+        }
+
+        else if(strncmp(buffer,"INVITE",6)==0) {
+            
+            //received a call
+            char remote_side_sdp[SOCKET_BUFFER_SIZE]={0};
+            char remote_side_user[50]={0};
+            sscanf(buffer,"INVITE %s %s",remote_side_user,remote_side_sdp);
+
+
+            cout<<"Offerer side: "<<remote_side_user<<"\nSDP:\n";
+            cout<<remote_side_sdp<<endl;
+                        
+            //accept-decline
+            
+            //assume accepted
+
+            char answer_to_call[SOCKET_BUFFER_SIZE];
+            memset(answer_to_call,0,SOCKET_BUFFER_SIZE);
+
+            //send it is accepted
+            sprintf(answer_to_call,"ACCEPT %s",local_sdp.c_str());
+            send(client_socket,answer_to_call,sizeof(answer_to_call),0);
+
+
+
+        }
+        
+        if(!running.load()) {
             break;
         }
         cout<<buffer<<endl;
@@ -220,10 +315,10 @@ void server_handler(int port) {
 }
 
 int send_ip_and_port_to_server(const int client_socket,const char*client_address,const int client_port) {
-    char message[256];
-    memset(message,0,256);
+    char message[SOCKET_BUFFER_SIZE];
+    memset(message,0,SOCKET_BUFFER_SIZE);
     sprintf(message,"CLIENT %s %d",client_address,client_port);
-    return send(client_socket,message,strlen(message),0);
+    return send(client_socket,message,sizeof(message),0);
 
 }
 
@@ -232,6 +327,34 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: " << argv[0] << " <server_ip_address> <server_port> <client_ip_address> <client_port>" << std::endl;
         return 1;
     }
+
+
+		rtc::InitLogger(rtc::LogLevel::Debug);
+		auto pc = std::make_shared<rtc::PeerConnection>();
+
+		pc->onStateChange(
+		    [](rtc::PeerConnection::State state) { std::cout << "State: " << state << std::endl; });
+
+		pc->onGatheringStateChange([pc](rtc::PeerConnection::GatheringState state) {
+			std::cout << "Gathering State: " << state << std::endl;
+			if (state == rtc::PeerConnection::GatheringState::Complete) {
+				auto description = pc->localDescription();
+				json message = {{"type", description->typeString()},
+				                {"sdp", std::string(description.value())}};
+				std::cout << message << std::endl;
+                local_sdp=to_string(message);
+			}
+		});
+
+
+		const rtc::SSRC ssrc = 42;
+		rtc::Description::Video media("video", rtc::Description::Direction::SendOnly);
+		media.addH264Codec(96); // Must match the payload type of the external h264 RTP stream
+		media.addSSRC(ssrc, "video-send");
+		auto track = pc->addTrack(media);
+
+		pc->setLocalDescription();
+
 
     // Set signal handler for SIGINT signal
     struct sigaction sig_handler;
