@@ -24,3 +24,9 @@ give server ip address, server port, client ip address and client port
 ```bash
 ./client 172.20.10.3 12345 172.20.10.4 8080
 ```
+
+before makefile makesure that libraries are linked : 
+
+```bash
+sudo ldconfig
+```

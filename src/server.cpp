@@ -253,6 +253,12 @@ void client_handler(int client_socket) {
 }
 
 int main(int argc, char *argv[]) {
+
+    if(argc!=2) {
+        std::cerr << "Usage: " << argv[0] << " <server_port>" << std::endl;
+        return 1;        
+    }
+
     int port = std::stoi(argv[1]);
 
     // Create socket
