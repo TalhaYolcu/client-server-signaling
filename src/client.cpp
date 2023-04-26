@@ -26,6 +26,7 @@ bool server_disconnected=false;
 std::atomic_bool running(true);
 bool exit_selected=false;
 string local_sdp;
+string remote_sdp;
 bool isLogin=false;
 
 void signal_handler(int sig) {
@@ -278,11 +279,16 @@ void server_handler(int port) {
         }
 
         else if(strncmp(buffer,"INVITE",6)==0) {
+
+            cout<<buffer<<endl;
             
             //received a call
             char remote_side_sdp[SOCKET_BUFFER_SIZE]={0};
             char remote_side_user[50]={0};
-            sscanf(buffer,"INVITE %s %s",remote_side_user,remote_side_sdp);
+            sscanf(buffer,"INVITE %s",remote_side_user);
+
+            int len=6+1+strlen(remote_side_user)+1;
+            strncpy(remote_side_sdp,buffer+len,strlen(buffer)-len);
 
 
             cout<<"Offerer side: "<<remote_side_user<<"\nSDP:\n";
@@ -302,11 +308,23 @@ void server_handler(int port) {
 
 
         }
+
+        else if(strncmp(buffer,"ACCEPT",6)==0) {
+            int len=6+1;
+            char remote_sdp_char[SOCKET_BUFFER_SIZE]={0};
+            strncpy(remote_sdp_char,buffer+len,strlen(buffer)-len);
+
+            cout<<"Remote side's SDP:\n";
+            cout<<remote_sdp_char<<endl;
+
+            remote_sdp=string(remote_sdp_char);
+
+            
+        }
         
         if(!running.load()) {
             break;
         }
-        cout<<buffer<<endl;
     }
 
     close(client_socket);

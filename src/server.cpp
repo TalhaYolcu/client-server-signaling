@@ -29,16 +29,8 @@ void signal_handler(int sig) {
     }
 }
 
-int connect_to_client(char*client_ip_address,char*tokens1,char*tokens2,
-    char*client_port_char,int* client_port_int,int* client_socket_fd) {
+int connect_to_client(char*client_ip_address,int* client_port_int,int* client_socket_fd) {
 
-    //get client ip address
-    strncpy(client_ip_address,tokens1,strlen(tokens1));
-    
-    //get client port as a char
-    strncpy(client_port_char,tokens2,strlen(tokens2));
-    //get client port as number
-    *client_port_int=atoi(client_port_char);
 
     //create socket and connect to client
     *client_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -70,11 +62,9 @@ void client_handler(int client_socket) {
     // Handle client request here
 
     char client_ip_address[15];
-    char client_port_char[6];
     int client_port_int=-1;
     int client_socket_fd=-1;
     memset(client_ip_address,0,15);
-    memset(client_port_char,0,6);
     std::string username;
     std::string password;
     bool haslogin=false;
@@ -100,18 +90,17 @@ void client_handler(int client_socket) {
         // Print the received message to the console
         std::cout << "Received message from client: " << buffer << std::endl;
 
-        // Split the buffer into tokens separated by spaces
-        char* token;
-        char* rest = buffer;
-        int i = 0;
-        char* tokens[100];
-        while ((token = strtok_r(rest, " ", &rest))) {
-            tokens[i++] = token;
-        }
-        if(strncmp(tokens[0],"CLIENT",6)==0) {
+        if(strncmp(buffer,"CLIENT",6)==0) {
             cout<<"Client ip address and port received\n";
-            if(connect_to_client(client_ip_address,tokens[1],tokens[2]
-            ,client_port_char,&client_port_int,&client_socket_fd)!=0) {
+            char client_port_char[10]={0};
+
+            sscanf(buffer,"CLIENT %s %d",client_ip_address,&client_port_int);
+
+            cout<<client_ip_address<<endl;
+            cout<<client_port_int<<endl;
+
+            if(connect_to_client(client_ip_address,
+            &client_port_int,&client_socket_fd)!=0) {
                 cout<<"Error connecting to the server\n";
                 break;
             }
@@ -120,10 +109,16 @@ void client_handler(int client_socket) {
 
 
         }
-        else if(strncmp(tokens[0],"SIGNUP",6)==0) {
+        else if(strncmp(buffer,"SIGNUP",6)==0) {
             cout << "This is register\n";
-            username=string(tokens[1]);
-            password=string(tokens[2]);
+
+            char username_char[50]={0};
+            char password_char[50]={0};
+
+            sscanf(buffer,"SIGNUP %s %s",username_char,password_char);
+
+            username=string(username_char);
+            password=string(password_char);
 
             userStore.addUser(User(username,password,false,client_socket_fd));
 
@@ -131,11 +126,17 @@ void client_handler(int client_socket) {
             send(client_socket,message,sizeof(message),0);            
 
         }
-        else if(strncmp(tokens[0],"LOGIN",5)==0) {
+        else if(strncmp(buffer,"LOGIN",5)==0) {
             cout<< "This is login\n";
-            username=string(tokens[1]);
-            password=string(tokens[2]);
-            
+
+            char username_char[50]={0};
+            char password_char[50]={0};
+
+            sscanf(buffer,"LOGIN %s %s",username_char,password_char);
+
+            username=string(username_char);
+            password=string(password_char);
+
             userStore.loginUser(username,password);
 
             char message[SOCKET_BUFFER_SIZE] = "Login is successful\n";
@@ -143,9 +144,21 @@ void client_handler(int client_socket) {
      
         }
 
-        else if(strncmp(tokens[0],"CALL",4)==0) {
+        else if(strncmp(buffer,"CALL",4)==0) {
             cout<<"This is call\n";
-            string receiver_username=string(tokens[1]);
+
+            char receiver_username_char[50]={0};
+            char first_peer_sdp[SOCKET_BUFFER_SIZE]={0};
+
+            //take senders sdp
+            sscanf(buffer,"CALL %s",receiver_username_char);
+
+            int len=4+1+strlen(receiver_username_char)+1; //CALL username 
+            strncpy(first_peer_sdp,buffer+len,strlen(buffer)-len);
+
+            cout<<"First peer sdp\n";
+            cout<<first_peer_sdp<<endl;
+            string receiver_username=string(receiver_username_char);
 
             if(!userStore.isLogin(receiver_username)) {
                 //user is not login, send error message to client
@@ -154,19 +167,20 @@ void client_handler(int client_socket) {
                 //user not found, send error message to client
             }
             else {
-                //take senders sdp
-                string first_peer_sdp=string(tokens[2]);
+                
 
                 //send to receiver
                 try {
                     User receiverUser=userStore.getUser(receiver_username);
                     int receiver_fd=receiverUser.getSocketFd();
                     
-                    char message[SOCKET_BUFFER_SIZE];
-                    memset(message,0,SOCKET_BUFFER_SIZE);
+                    char message[SOCKET_BUFFER_SIZE*2];
+                    memset(message,0,SOCKET_BUFFER_SIZE*2);
 
-                    sprintf(message,"INVITE %s %s",username.c_str(),first_peer_sdp.c_str());
+                    sprintf(message,"INVITE %s %s",receiver_username_char,first_peer_sdp);
 
+                    cout<<"Sending message to the receiver\n";
+                    cout<<message<<endl;
                     send(receiver_fd,message,sizeof(message),0);
 
                     //wait receiver to send its sdp
@@ -176,35 +190,22 @@ void client_handler(int client_socket) {
 
                     recv(receiver_fd,incoming_message,sizeof(incoming_message),0);
                     
-                    char response_to_sender[SOCKET_BUFFER_SIZE]={0};
-
-                    strncpy(response_to_sender,incoming_message,strlen(incoming_message));
-
                     cout<<"Receiver's sdp:\n"<<endl;
                     cout<<incoming_message<<endl;
 
-                    char* receiver_token;
-                    char* receiver_rest = incoming_message;
-                    int i = 0;
-                    char* receiver_tokens[100];
-                    while ((receiver_token = strtok_r(receiver_rest, " ", &receiver_rest))) {
-                        receiver_tokens[i++] = receiver_token;
-                    }
+                    char accept_command[50]={0};
 
-                    if(strncmp(receiver_tokens[0],"ACCEPT",6)==0) {
+                    sscanf(incoming_message,"%s",accept_command);
+
+                    if(strncmp(accept_command,"ACCEPT",6)==0) {
                         //receiver accepted request
-                        char receiver_sdp[SOCKET_BUFFER_SIZE];
-                        memset(receiver_sdp,0,SOCKET_BUFFER_SIZE);
-
-                        //take receivers sdp
-                        strncpy(receiver_sdp,receiver_tokens[1],strlen(receiver_tokens[1]));
 
                         cout<<"Forwarding receivers sdp to sender:\n";
-                        cout<<response_to_sender<<endl;
+                        cout<<incoming_message<<endl;
                         //forward it to first sender
 
                         
-                        //send(client_socket_fd,response_to_sender,sizeof(response_to_sender),0);
+                        send(client_socket_fd,incoming_message,sizeof(incoming_message),0);
 
 
                     }
@@ -221,7 +222,7 @@ void client_handler(int client_socket) {
                 
             }
         }
-        else if(strncmp(tokens[0],"LOGOUT",6)==0) {
+        else if(strncmp(buffer,"LOGOUT",6)==0) {
             cout<< "This is logout\n";
 
             userStore.logOutUser(username);
@@ -229,7 +230,7 @@ void client_handler(int client_socket) {
             char message[SOCKET_BUFFER_SIZE] = "Logout is successful\n";
             send(client_socket,message,sizeof(message),0);             
         }
-        else if(strncmp(tokens[0],"EXIT",4)==0) {
+        else if(strncmp(buffer,"EXIT",4)==0) {
             cout <<"This is exit\n";
             char message[SOCKET_BUFFER_SIZE] = "Exit is succesful\n";
             if (send(client_socket, message, sizeof(message), 0) == -1) {
