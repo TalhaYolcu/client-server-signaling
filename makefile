@@ -1,7 +1,7 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -lpthread -I./include -fPIC
+CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -lpthread -pthread -I./include -fPIC
 LDFLAGS = -L./lib
-LIBS =  -ldatachannel -lsrtp2 -ljuice
+LIBS =  -ldatachannel -lsrtp2 -ljuice -lpthread
 
 # Add ThreadSafeMap.cpp to the list of source files
 SERVER_SRC = src/server.cpp src/User.cpp src/UserStore.cpp
