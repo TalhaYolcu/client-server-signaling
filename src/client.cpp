@@ -231,10 +231,17 @@ void media_handler(shared_ptr<Track> track){
     output_addr.sin_family = AF_INET;
     output_addr.sin_family = inet_addr("127.0.0.1");
     output_addr.sin_port  = htons(6000); // incoming video will be streaming to this port 
+    
+    
+    auto session = std::make_shared<rtc::RtcpReceivingSession>();
+    track->setMediaHandler(session);
+    const rtc::SSRC ssrc = 42;
 
-
+    int BufferSize = 2048;
+    char buffer[BufferSize];
+    char buffer2[BufferSize];
     int len;
-    while ((len = recv(input_socket, buffer, 2048, 0)) >= 0  || len= send(output_socket,buffer,2048, 0) >= 0)  {
+    while ((len = recv(input_socket, buffer, BufferSize, 0)) >= 0  || len= send(output_socket,buffer2,BufferSize, 0) >= 0)  {
         if (len < sizeof(rtc::RtpHeader) || !track->isOpen())
             continue;
 
@@ -244,10 +251,10 @@ void media_handler(shared_ptr<Track> track){
         track->send(reinterpret_cast<const std::byte *>(buffer), len);
     }
     track->onMessage(
-    [session, sock, addr](rtc::binary message) {
+    [session, output_socket, output_addr](rtc::binary message) {
         // This is an RTP packet
         sendto(output_socket, reinterpret_cast<const char *>(message.data()), int(message.size()), 0,
-                reinterpret_cast<const struct sockaddr *>(&addr), sizeof(addr));
+                reinterpret_cast<const struct sockaddr *>(&output_addr), sizeof(output_addr));
     },
     nullptr);
 
@@ -333,9 +340,11 @@ void server_handler(int port, std::shared_ptr<rtc::PeerConnection> pc) {
 
             cout<< "Offerer side: " <<remote_side_user<<"\nSDP:\n";
             cout<< remote_side_sdp <<endl << endl;
-
-            pc->setRemoteDescription(remote_side_sdp);
-            pc->setLocalDesription(rtc::Description::Type::Answer);
+            remote_sdp=string(remote_side_sdp);
+            json j0 = json::parse(remote_sdp);
+            rtc::Description offer_sdp(j0["description"].get<std::string>(),"offer");      
+            pc->setRemoteDescription(offer_sdp);
+            pc->setLocalDescription(rtc::Description::Type::Answer);
             
             //accept-decline
             
@@ -362,10 +371,11 @@ void server_handler(int port, std::shared_ptr<rtc::PeerConnection> pc) {
             cout<<remote_sdp_char<<endl;
 
             remote_sdp=string(remote_sdp_char);
-
+            json j = json::parse(remote_sdp);
             pc->setLocalDescription(rtc::Description::Type::Offer);
-            auto answer.sdp = message["description"].get<std::string>();
-            pc->setRemoteDescription(rtc::Description::(answer_sdp,"answer"));
+            rtc::Description answer_sdp(j["description"].get<std::string>(),"answer");
+            pc->setRemoteDescription(answer_sdp);
+            
             
 
         }
