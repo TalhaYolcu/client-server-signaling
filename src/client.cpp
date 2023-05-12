@@ -219,14 +219,14 @@ void open_menu(int client_sock) {
     
 }
 
-void media_handler(shared_ptr<Track> track){
-    SOCKET input_socket = socket(AF_INET, SOCK_DGRAM, 0);
+void media_handler(std::shared_ptr<rtc::Track> track){
+    int input_socket = socket(AF_INET, SOCK_DGRAM, 0);
     sockaddr_in input_addr = {};
     input_addr.sin_family = AF_INET;
     input_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     input_addr.sin_port = htons(5000); // stream your video to this port
 
-    SOCKET output_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    int output_socket = socket(AF_INET, SOCK_DGRAM, 0);
     sockaddr_in output_addr ={};
     output_addr.sin_family = AF_INET;
     output_addr.sin_family = inet_addr("127.0.0.1");
@@ -241,7 +241,7 @@ void media_handler(shared_ptr<Track> track){
     char buffer[BufferSize];
     char buffer2[BufferSize];
     int len;
-    while ((len = recv(input_socket, buffer, BufferSize, 0)) >= 0  || len= send(output_socket,buffer2,BufferSize, 0) >= 0)  {
+    while ((len = recv(input_socket, buffer, BufferSize, 0)) >= 0  || (len= send(output_socket,buffer2,BufferSize, 0)) >= 0)  {
         if (len < sizeof(rtc::RtpHeader) || !track->isOpen())
             continue;
 
@@ -472,7 +472,7 @@ int main(int argc, char* argv[]) {
         
         //send client ip address and port
         if(send_ip_and_port_to_server(client_socket,client_address,client_port)==-1) {
-            cout<<"Failed send ip and port to server\n";
+            std::cout<<"Failed send ip and port to server\n";
             close(client_socket);
             return -1;
         }
@@ -480,7 +480,7 @@ int main(int argc, char* argv[]) {
         media_handler(track); //not sure where to call this function
 
         //create listener thread
-        std::thread t(server_handler,client_port);
+        std::thread t(&server_handler,client_port,pc);
 
         open_menu(client_socket);
 

@@ -1,3 +1,5 @@
 # Ignore executable files
 server
 client
+lib/libusrsctp.a
+lib/libsrtp2.a

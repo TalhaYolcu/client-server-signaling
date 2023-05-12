@@ -210,7 +210,7 @@ void client_handler(int client_socket) {
                         //forward it to first sender
 
                         
-                        //send(client_socket_fd,incoming_message,sizeof(incoming_message),0);
+                        send(client_socket_fd,incoming_message,sizeof(incoming_message),0);
                         
 
                         rtc::InitLogger(rtc::LogLevel::Debug);
