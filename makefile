@@ -1,16 +1,16 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -lpthread -pthread -I./include -fPIC
 LDFLAGS = -L./lib
-LIBS =  -ldatachannel -lsrtp2 -ljuice -lpthread
+LIBS =  -ldatachannel -lsrtp2 -ljuice -lpthread 
 
 # Add ThreadSafeMap.cpp to the list of source files
 SERVER_SRC = src/server.cpp src/User.cpp src/UserStore.cpp
 
 CLIENT_SRC = src/client.cpp 
 
-OFFERER_SRC = src/simple_offerer.cpp 
+OFFERER_SRC = src/offerer.cpp 
 
-ANSWERER_SRC = src/simple_answerer.cpp 
+ANSWERER_SRC = src/answerer.cpp 
 
 # Generate object files from source files
 SERVER_OBJ = $(SERVER_SRC:.cpp=.o)

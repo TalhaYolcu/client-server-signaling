@@ -79,6 +79,24 @@ int main() {
 		rtc::Description answer(j["sdp"].get<std::string>(), j["type"].get<std::string>());
 		pc->setRemoteDescription(answer);
 
+        pc->onLocalCandidate([](rtc::Candidate candidate) {
+		std::cout << "Local Candidate (Paste this to the other peer after the local description):"
+		          << std::endl;
+		std::cout << std::string(candidate) << std::endl << std::endl;
+	    });
+
+        int num_cand;
+        std::cout << "Enter number of candidate you will enter "<< std::endl;
+        std::cin >> num_cand;
+        while(num_cand<0){
+            std::string candidate;
+            std::cout << "enter the candidate" << std::endl;
+            std::getline(std::cin, candidate);
+            pc->addRemoteCandidate(candidate);
+            num_cand--;
+
+        }
+        
 		// Receive from UDP
 		char buffer[BUFFER_SIZE];
 		int len;

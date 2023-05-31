@@ -80,7 +80,7 @@ int main() {
 		json j = json::parse(sdp);
 		rtc::Description offer(j["sdp"].get<std::string>(), j["type"].get<std::string>());
 		pc->setRemoteDescription(offer);
-        pc->setLocalDescription(rtc::Description::Type::Offer);
+        pc->setLocalDescription(rtc::Description::Type::Answer);
 
 
 		std::cout << "Press any key to exit." << std::endl;
