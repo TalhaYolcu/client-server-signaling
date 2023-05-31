@@ -21,6 +21,7 @@ bool sdp_received=false;
 
 bool sdp_generated=false;
 
+//local answerer sdp
 string my_local_answer_sdp;
 
 vector<string> local_candidates_vector;
