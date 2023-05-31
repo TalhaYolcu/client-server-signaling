@@ -2,6 +2,7 @@
 #include <cstring>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <unistd.h>
 #include <signal.h>
 #include <thread>
@@ -218,7 +219,50 @@ void open_menu(int client_sock) {
     
 }
 
-void server_handler(int port) {
+void media_handler(std::shared_ptr<rtc::Track> track){
+    int input_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    sockaddr_in input_addr = {};
+    input_addr.sin_family = AF_INET;
+    input_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    input_addr.sin_port = htons(5000); // stream your video to this port
+
+    int output_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    sockaddr_in output_addr ={};
+    output_addr.sin_family = AF_INET;
+    output_addr.sin_family = inet_addr("127.0.0.1");
+    output_addr.sin_port  = htons(6000); // incoming video will be streaming to this port 
+    
+    
+    auto session = std::make_shared<rtc::RtcpReceivingSession>();
+    track->setMediaHandler(session);
+    const rtc::SSRC ssrc = 42;
+
+    int BufferSize = 2048;
+    char buffer[BufferSize];
+    char buffer2[BufferSize];
+    int len;
+    while ((len = recv(input_socket, buffer, BufferSize, 0)) >= 0  || (len= send(output_socket,buffer2,BufferSize, 0)) >= 0)  {
+        if (len < sizeof(rtc::RtpHeader) || !track->isOpen())
+            continue;
+
+        auto rtp = reinterpret_cast<rtc::RtpHeader *>(buffer);
+        rtp->setSsrc(ssrc);
+
+        track->send(reinterpret_cast<const std::byte *>(buffer), len);
+    }
+    track->onMessage(
+    [session, output_socket, output_addr](rtc::binary message) {
+        // This is an RTP packet
+        sendto(output_socket, reinterpret_cast<const char *>(message.data()), int(message.size()), 0,
+                reinterpret_cast<const struct sockaddr *>(&output_addr), sizeof(output_addr));
+    },
+    nullptr);
+
+
+}
+
+
+void server_handler(int port, std::shared_ptr<rtc::PeerConnection> pc) {
     //create socket that handles messages comes from server
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket == -1) {
@@ -280,6 +324,9 @@ void server_handler(int port) {
 
         else if(strncmp(buffer,"INVITE",6)==0) {
 
+            //Receiver side
+            // server sdpsi önce buraya gelecek. sonra biz sdpmizi servera göndereceğiz.
+
             cout<<buffer<<endl;
             
             //received a call
@@ -291,9 +338,14 @@ void server_handler(int port) {
             strncpy(remote_side_sdp,buffer+len,strlen(buffer)-len);
 
 
-            cout<<"Offerer side: "<<remote_side_user<<"\nSDP:\n";
-            cout<<remote_side_sdp<<endl;
-                        
+            cout<< "Offerer side: " <<remote_side_user<<"\nSDP:\n";
+            cout<< remote_side_sdp <<endl << endl;
+            remote_sdp=string(remote_side_sdp);
+            json j0 = json::parse(remote_sdp);
+            rtc::Description offer_sdp(j0["description"].get<std::string>(),"offer");      
+            pc->setRemoteDescription(offer_sdp);
+            pc->setLocalDescription(rtc::Description::Type::Answer);
+            
             //accept-decline
             
             //assume accepted
@@ -310,6 +362,7 @@ void server_handler(int port) {
         }
 
         else if(strncmp(buffer,"ACCEPT",6)==0) {
+            //buraya serverın sdpsi gelecek
             int len=6+1;
             char remote_sdp_char[SOCKET_BUFFER_SIZE]={0};
             strncpy(remote_sdp_char,buffer+len,strlen(buffer)-len);
@@ -318,8 +371,13 @@ void server_handler(int port) {
             cout<<remote_sdp_char<<endl;
 
             remote_sdp=string(remote_sdp_char);
-
+            json j = json::parse(remote_sdp);
+            pc->setLocalDescription(rtc::Description::Type::Offer);
+            rtc::Description answer_sdp(j["description"].get<std::string>(),"answer");
+            pc->setRemoteDescription(answer_sdp);
             
+            
+
         }
         
         if(!running.load()) {
@@ -339,6 +397,7 @@ int send_ip_and_port_to_server(const int client_socket,const char*client_address
     return send(client_socket,message,sizeof(message),0);
 
 }
+
 
 int main(int argc, char* argv[]) {
     if (argc != 5) {
@@ -366,67 +425,68 @@ int main(int argc, char* argv[]) {
 
 
 		const rtc::SSRC ssrc = 42;
-		rtc::Description::Video media("video", rtc::Description::Direction::SendOnly);
+		rtc::Description::Video media("video", rtc::Description::Direction::SendRecv);
 		media.addH264Codec(96); // Must match the payload type of the external h264 RTP stream
-		media.addSSRC(ssrc, "video-send");
+		media.addSSRC(ssrc, "video-sendrecv");
 		auto track = pc->addTrack(media);
 
-		pc->setLocalDescription();
+		// pc->setLocalDescription();
 
 
-    // Set signal handler for SIGINT signal
-    struct sigaction sig_handler;
-    memset(&sig_handler, 0, sizeof(sig_handler));
-    sig_handler.sa_handler = signal_handler;
-    if (sigaction(SIGINT, &sig_handler, NULL) == -1) {
-        std::cerr << "Failed to set signal handler" << std::endl;
-        return 1;
-    }
+        // Set signal handler for SIGINT signal
+        struct sigaction sig_handler;
+        memset(&sig_handler, 0, sizeof(sig_handler));
+        sig_handler.sa_handler = signal_handler;
+        if (sigaction(SIGINT, &sig_handler, NULL) == -1) {
+            std::cerr << "Failed to set signal handler" << std::endl;
+            return 1;
+        }
 
-    const char* server_address = argv[1];
-    const int server_port = std::stoi(argv[2]);
-    const char* client_address = argv[3];
-    const int client_port = std::stoi(argv[4]);
+        const char* server_address = argv[1];
+        const int server_port = std::stoi(argv[2]);
+        const char* client_address = argv[3];
+        const int client_port = std::stoi(argv[4]);
 
-    // Create a socket
-    int client_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_socket == -1) {
-        std::cerr << "Failed to create socket" << std::endl;
-        return 1;
-    }
+        // Create a socket
+        int client_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (client_socket == -1) {
+            std::cerr << "Failed to create socket" << std::endl;
+            return 1;
+        }
 
-    // Convert the server address from text to binary form
-    struct sockaddr_in server_addr;
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(server_port);
-    if (inet_pton(AF_INET, server_address, &server_addr.sin_addr) != 1) {
-        std::cerr << "Invalid server address" << std::endl;
-        return 1;
-    }
+        // Convert the server address from text to binary form
+        struct sockaddr_in server_addr;
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(server_port);
+        if (inet_pton(AF_INET, server_address, &server_addr.sin_addr) != 1) {
+            std::cerr << "Invalid server address" << std::endl;
+            return 1;
+        }
 
-    // Connect to the server
-    if (connect(client_socket, (struct sockaddr*) &server_addr, sizeof(server_addr)) == -1) {
-        std::cerr << "Failed to connect to server" << std::endl;
-        return 1;
-    }
+        // Connect to the server
+        if (connect(client_socket, (struct sockaddr*) &server_addr, sizeof(server_addr)) == -1) {
+            std::cerr << "Failed to connect to server" << std::endl;
+            return 1;
+        }
 
-    
-    //send client ip address and port
-    if(send_ip_and_port_to_server(client_socket,client_address,client_port)==-1) {
-        cout<<"Failed send ip and port to server\n";
+        
+        //send client ip address and port
+        if(send_ip_and_port_to_server(client_socket,client_address,client_port)==-1) {
+            std::cout<<"Failed send ip and port to server\n";
+            close(client_socket);
+            return -1;
+        }
+
+        media_handler(track); //not sure where to call this function
+
+        //create listener thread
+        std::thread t(&server_handler,client_port,pc);
+
+        open_menu(client_socket);
+
+        // Close the socket
         close(client_socket);
-        return -1;
-    }
+        t.join();
 
-
-    //create listener thread
-    std::thread t(server_handler,client_port);
-
-    open_menu(client_socket);
-
-    // Close the socket
-    close(client_socket);
-    t.join();
-
-    return 0;
+        return 0;
 }

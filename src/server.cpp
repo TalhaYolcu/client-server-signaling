@@ -17,9 +17,14 @@
 #include "UserStore.cpp"
 #include "User.cpp"
 #include "util.hpp"
+#include "rtc/rtc.hpp"
+#include "rtc/peerconnection.hpp"
+#include "rtc/global.hpp"
+#include <nlohmann/json.hpp>
 
 std::atomic_bool running(true);
 using namespace std;
+using nlohmann::json;
 
 UserStore userStore;
 
@@ -206,6 +211,115 @@ void client_handler(int client_socket) {
 
                         
                         send(client_socket_fd,incoming_message,sizeof(incoming_message),0);
+                        
+
+                        // rtc::InitLogger(rtc::LogLevel::Debug);
+                        // rtc::Configuration config;
+                        // config.iceServers.emplace_back("stun:stun.l.google.com:19302");
+
+                        // // Create three PeerConnections: offerer_peer, answerer_peer, and local_peer
+                        // auto offerer_peer = std::make_shared<rtc::PeerConnection>(config); //peer that sends offer and server sends answer
+                        
+                        // std::string local_to_offerer_sdp;
+                        // offerer_peer->onStateChange(
+                        // [](rtc::PeerConnection::State state) { std::cout << "State: " << state << std::endl; });
+
+                        // offerer_peer->onGatheringStateChange([offerer_peer, &local_to_offerer_sdp](rtc::PeerConnection::GatheringState state) {
+                        //     std::cout << "Gathering State for offerer peer: " << state << std::endl;
+                        //     if (state == rtc::PeerConnection::GatheringState::Complete) {
+                               
+                        //         auto description = offerer_peer->localDescription();
+                        //         json local_to_offerer = {{"type", description->typeString()},
+                        //                         {"sdp", std::string(description.value())}};
+                        //         std::cout << local_to_offerer << std::endl;
+                        //         local_to_offerer_sdp = local_to_offerer.dump();
+
+                        //     }
+                        // });
+
+                        // const rtc::SSRC ssrc = 42;
+                        // rtc::Description::Video media("video", rtc::Description::Direction::SendRecv);
+                        // media.addH264Codec(96); // Must match the payload type of the external h264 RTP stream
+                        // media.addSSRC(ssrc, "video-sendrecv");
+                        // auto track = offerer_peer->addTrack(media);
+
+                        // json j = json::parse(first_peer_sdp);
+                        // rtc::Description offer_sdp(j["description"].get<std::string>(),"offer");
+                        // offerer_peer->setRemoteDescription(rtc::Description(incoming_message,rtc::Description::Type::Offer));
+                        // offerer_peer->setLocalDescription(rtc::Description::Type::Answer);
+                        // send(client_socket_fd, &local_to_offerer_sdp ,sizeof(local_to_offerer_sdp),0);
+
+                        // ///////////Answerer////////////
+                        
+                        // auto answerer_peer = std::make_shared<rtc::PeerConnection>(config); // peer that server sends offer and peer sends answer
+                        
+                        // std::string local_to_answerer_sdp;
+                        // answerer_peer->onStateChange(
+                        // [](rtc::PeerConnection::State state) { std::cout << "State: " << state << std::endl; });
+
+                        // answerer_peer->onGatheringStateChange([offerer_peer,&local_to_answerer_sdp](rtc::PeerConnection::GatheringState state) {
+                        //     std::cout << "Gathering State for answerer peer: " << state << std::endl;
+                        //     if (state == rtc::PeerConnection::GatheringState::Complete) {
+                               
+                        //         auto description = offerer_peer->localDescription();
+                        //         json local_to_answerer = {{"type", description->typeString()},
+                        //                         {"sdp", std::string(description.value())}};
+                        //         std::cout << local_to_answerer << std::endl;
+                        //         local_to_answerer_sdp = local_to_answerer.dump();
+
+                        //     }
+                        // });
+
+                        // const rtc::SSRC ssrc2 = 44;
+                        // rtc::Description::Video media2("video", rtc::Description::Direction::SendRecv);
+                        // media.addH264Codec(96); // Must match the payload type of the external h264 RTP stream
+                        // media.addSSRC(ssrc2, "video-sendrecv");
+                        // auto track2 = answerer_peer->addTrack(media2);
+
+                        // json j2 = json::parse(incoming_message);
+                        // rtc::Description answer_sdp(j2["description"].get<std::string>(),"answer");
+                        // answerer_peer->setLocalDescription(rtc::Description::Type::Offer);
+                        // answerer_peer->setRemoteDescription(rtc::Description(answer_sdp,rtc::Description::Type::Answer));
+                        // send(client_socket_fd, &local_to_answerer_sdp,sizeof(local_to_answerer_sdp),0);
+
+                        // auto session = std::make_shared<rtc::RtcpReceivingSession>();
+                        // track->setMediaHandler(session);
+                        // auto session2 = std::make_shared<rtc::RtcpReceivingSession>();
+                        // track2->setMediaHandler(session2);
+
+                        // int BufferSize = 2048;
+                        // char buffer[BufferSize];
+                        // char buffer2[BufferSize];
+                        // int len;
+                        // int len2;
+
+                        
+
+                        // offerer_peer->onTrack([&track,&track2](std::shared_ptr<rtc::Track> trackPtr2) {
+
+                        //     if(track->mid()=="video"){
+                        //         track->onMessage( 
+                        //             [&track2](rtc::binary message){
+                        //                 track2->send(message.data(),message.size());
+
+                        //         },
+                        //         nullptr);
+                        //     }    
+                        //     // auto rtp = reinterpret_cast<rtc::RtpHeader *>(message);
+			            //     // rtp->setSsrc(ssrc); 
+                        //     // track2->send(message.data(),message.size());
+                        // });
+
+                        // answerer_peer->onTrack([&track,&track2](std::shared_ptr<rtc::Track> trackPtr){
+                            
+                        //     if(track2->mid()=="video"){
+                        //         track2->onMessage([track](rtc::binary message){
+                        //             track->send(message.data(),message.size());
+
+                        //         },nullptr);
+                        //     }    
+
+                        // });
 
 
                     }
