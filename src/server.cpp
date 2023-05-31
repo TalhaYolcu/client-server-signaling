@@ -369,6 +369,7 @@ void client_handler(int client_socket) {
 
 int main(int argc, char *argv[]) {
 
+    //check arguments
     if(argc!=2) {
         std::cerr << "Usage: " << argv[0] << " <server_port>" << std::endl;
         return 1;        
@@ -419,6 +420,7 @@ int main(int argc, char *argv[]) {
 
     std::cout << "Server started on port " << port << std::endl;
 
+    //create vector of threads
     std::vector<std::thread> threads;
 
     // Wait for incoming connections
@@ -428,10 +430,12 @@ int main(int argc, char *argv[]) {
         socklen_t client_addr_len = sizeof(client_addr);
         int client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len);
         
+        //if sigint is received
         if(!running.load()) {
             break;
         }
 
+        //error occured on accept
         if (client_socket == -1) {
             std::cerr << "Failed to accept incoming connection" << std::endl;
             break;;
@@ -441,16 +445,13 @@ int main(int argc, char *argv[]) {
         threads.push_back( std::thread (client_handler, client_socket));
     }
 
+    //wait for threads to finish
     for (auto& t : threads) {
         t.join();
     }
 
     // Close server socket
     close(server_socket);
-
-
-
     std::cout << "Server stopped" << std::endl;
-
     return 0;
 }

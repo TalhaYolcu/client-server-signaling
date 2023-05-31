@@ -8,9 +8,9 @@ SERVER_SRC = src/server.cpp src/User.cpp src/UserStore.cpp
 
 CLIENT_SRC = src/client.cpp 
 
-OFFERER_SRC = src/offerer2.cpp 
+OFFERER_SRC = src/offerer.cpp 
 
-ANSWERER_SRC = src/simple_answerer.cpp 
+ANSWERER_SRC = src/answerer.cpp 
 
 # Generate object files from source files
 SERVER_OBJ = $(SERVER_SRC:.cpp=.o)

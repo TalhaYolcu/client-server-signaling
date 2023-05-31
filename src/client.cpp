@@ -323,6 +323,8 @@ void server_handler(int port, std::shared_ptr<rtc::PeerConnection> pc) {
         }
 
         else if(strncmp(buffer,"INVITE",6)==0) {
+            //receiver side 
+
 
             //Receiver side
             // server sdpsi önce buraya gelecek. sonra biz sdpmizi servera göndereceğiz.
@@ -356,13 +358,21 @@ void server_handler(int port, std::shared_ptr<rtc::PeerConnection> pc) {
             //send it is accepted
             sprintf(answer_to_call,"ACCEPT %s",local_sdp.c_str());
             send(client_socket,answer_to_call,sizeof(answer_to_call),0);
+            
 
+            
 
 
         }
 
         else if(strncmp(buffer,"ACCEPT",6)==0) {
+<<<<<<< HEAD
             //buraya serverın sdpsi gelecek
+=======
+
+            //offerer side
+
+>>>>>>> 85ee6e8 (Sdp exchange and messaging is done on sdpCandSend.cpp)
             int len=6+1;
             char remote_sdp_char[SOCKET_BUFFER_SIZE]={0};
             strncpy(remote_sdp_char,buffer+len,strlen(buffer)-len);
@@ -424,6 +434,8 @@ int main(int argc, char* argv[]) {
 		});
 
 
+
+        //here should be send and recv SendRecv
 		const rtc::SSRC ssrc = 42;
 		rtc::Description::Video media("video", rtc::Description::Direction::SendRecv);
 		media.addH264Codec(96); // Must match the payload type of the external h264 RTP stream
