@@ -15,8 +15,10 @@ const int PORT = 8080;
 const int BUFFER_SIZE = 1024;
 std::string local_sdp;
 
-int main() {
+int main(int argc, char* argv[]) {
 try{
+
+    //argv[1] -> IP
 
     rtc::InitLogger(rtc::LogLevel::Debug);
 	rtc::Configuration config;
@@ -44,38 +46,38 @@ try{
         local_candidates.push_back( std::string(candidate) );
 	});
 
-    auto dc = pc->createDataChannel("test"); // this is the offerer, so create a data channel
+    // auto dc = pc->createDataChannel("test"); // this is the offerer, so create a data channel
 
-	dc->onOpen([&]() { std::cout << "[DataChannel open: " << dc->label() << "]" << std::endl; });
+	// dc->onOpen([&]() { std::cout << "[DataChannel open: " << dc->label() << "]" << std::endl; });
 
-	dc->onClosed(
-	    [&]() { std::cout << "[DataChannel closed: " << dc->label() << "]" << std::endl; });
+	// dc->onClosed(
+	//     [&]() { std::cout << "[DataChannel closed: " << dc->label() << "]" << std::endl; });
 
-	dc->onMessage([](auto data) {
-		if (std::holds_alternative<std::string>(data)) {
-			std::cout << "[Received: " << std::get<std::string>(data) << "]" << std::endl;
-		}
-	});
+	// dc->onMessage([](auto data) {
+	// 	if (std::holds_alternative<std::string>(data)) {
+	// 		std::cout << "[Received: " << std::get<std::string>(data) << "]" << std::endl;
+	// 	}
+	// });
 
 
-    // int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    // struct sockaddr_in addr = {};
-    // addr.sin_family = AF_INET;
-    // addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    // addr.sin_port = htons(6000);
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    struct sockaddr_in addr = {};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    addr.sin_port = htons(6000);
 
-    // if (bind(sock, reinterpret_cast<const sockaddr *>(&addr), sizeof(addr)) < 0)
-    //     throw std::runtime_error("Failed to bind UDP socket on 127.0.0.1:6000");
+    if (bind(sock, reinterpret_cast<const sockaddr *>(&addr), sizeof(addr)) < 0)
+        throw std::runtime_error("Failed to bind UDP socket on 127.0.0.1:6000");
 
-    // int rcvBufSize = 212992;
-    // setsockopt(sock, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char *>(&rcvBufSize),
-    //             sizeof(rcvBufSize));
+    int rcvBufSize = 212992;
+    setsockopt(sock, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char *>(&rcvBufSize),
+                sizeof(rcvBufSize));
 
-    // const rtc::SSRC ssrc = 42;
-    // rtc::Description::Video media("video", rtc::Description::Direction::SendOnly);
-    // media.addH264Codec(96); // Must match the payload type of the external h264 RTP stream
-    // media.addSSRC(ssrc, "video-send");
-    // auto track = pc->addTrack(media);
+    const rtc::SSRC ssrc = 42;
+    rtc::Description::Video media("video", rtc::Description::Direction::SendOnly);
+    media.addH264Codec(96); // Must match the payload type of the external h264 RTP stream
+    media.addSSRC(ssrc, "video-send");
+    auto track = pc->addTrack(media);
 
     pc->setLocalDescription(rtc::Description::Type::Offer);
 
@@ -90,7 +92,7 @@ try{
     sockaddr_in serv_addr;
     std::memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = inet_addr("192.168.43.19");
+    serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
     serv_addr.sin_port = htons(PORT);
 
     if (bind(sockfd, (sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
@@ -181,7 +183,19 @@ try{
     std::cout << "[Message]: ";
     std::string message;
     getline(std::cin, message);
-    dc->send(message);
+    // dc->send(message);
+    std::memset(buffer, 0, BUFFER_SIZE);
+
+    int len;
+    while ((len = recv(sock, buffer, BUFFER_SIZE, 0)) >= 0) {
+        if (len < sizeof(rtc::RtpHeader) || !track->isOpen())
+            continue;
+
+        auto rtp = reinterpret_cast<rtc::RtpHeader *>(buffer);
+        rtp->setSsrc(ssrc);
+
+        track->send(reinterpret_cast<const std::byte *>(buffer), len);
+    }
     close(connfd);
     close(sockfd);
 

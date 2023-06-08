@@ -5,6 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "/usr/include/x86_64-linux-gnu/c++/11"
+                "/home/falcon/WebRTC/novice/client-server-signaling/inlcude"
             ],
             "defines": [
                 "_DEBUG",

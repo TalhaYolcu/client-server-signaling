@@ -1,0 +1,1 @@
+This code implements dahachannel creation using WEBRTC and send message to other peer. SDP and ICE Candidate exchange is made automatically using socket
