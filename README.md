@@ -78,3 +78,8 @@ Client  tarafı bu komut ile çalıştırılır
 5. Client öncelikle login signup logout ve exit özelliklerine sahip olacak
 6. Offerer client call isteği ile birlilkte arayacağı kişinin username ve kendi sdp sini (offer gönderecek)
 7. Server client ın sdp sini alacak, aranan kişiye kendi sdpsini(server in sdpsini) (offer) gönderecek. Eğer aranan kişi aramayı kabul ederse server a answer sdp sini gönderecek. Bundan sonra da server offerer client a server sdpsini (answer) gönderecek.
+
+
+
+
+
